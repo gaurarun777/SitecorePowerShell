@@ -2,6 +2,8 @@ $radioOptions = [ordered]@{
     "Include Direct Child Items"                 = 1
     "Include N Level of Child Items Recurcively" = 2
 }
+
+
 $dialogParams = @{
     Title            = "Dialog title"
     Description      = "Description under title"
@@ -51,11 +53,6 @@ $dialogParams = @{
  
 $dialogResult = Read-Variable @dialogParams
 if ($dialogResult -eq "ok") {
-    #$dropTreeSelector.ItemPath
-    #$radioSelector
-    #$languageSelection
-    #$singleLineText
-    #$startPath = "master:/sitecore/content/GEHC-Africa/Home/Account/Support"
     $startPath = "master:" + $dropTreeSelector.ItemPath
     Write-Host "Search started $(Get-Date -format 'u')"
     $list = [System.Collections.ArrayList]@()
@@ -73,10 +70,9 @@ if ($dialogResult -eq "ok") {
         $itemsToProcess | ForEach-Object { 
             $match = 0;
             foreach ($field in $_.Fields) {
-                #if ($field -match '.*qa.gehealthcare.com.*') {
                 if ($field -match '.*' + $singleLineText + '.*') {
                     $info = [PSCustomObject]@{
-                        "ID"           = $_.Paths.FullPath
+                        "Path"           = $_.Paths.FullPath
                         "Language"     = $_.Language
                         "TemplateName" = $_.TemplateName
                         "FieldName"    = $field.Name
