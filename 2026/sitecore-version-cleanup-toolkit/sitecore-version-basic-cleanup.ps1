@@ -4,7 +4,7 @@
 $rootPath = "master:/sitecore/content/Home"
 $databaseName = "master"
 $versionsToKeep = 3
-$dryRun = $false   # $true = report only, $false = actually delete
+$dryRun = $true   # $true = report only, $false = actually delete
 
 # --------------------------------------------------
 # VALIDATION
