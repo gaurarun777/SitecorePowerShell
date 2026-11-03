@@ -1,21 +1,100 @@
 <#
 .SYNOPSIS
-    Finds pages (items with a layout) that reference a given link, either in
-    page-level fields or in fields of datasource items used by the page's renderings.
+    Interactive version: shows a Read-Variable dialog to collect all inputs, then finds pages
+    (items with a layout) referencing the link in page fields or in datasource item fields.
 
 .NOTES
-    Run in Sitecore PowerShell Extensions (ISE or as a script in the Script Library).
-    Edit the CONFIG block below, then run.
+    Run from the SPE ISE or add to the Script Library (e.g. as a context-menu / toolbox script).
 #>
 
-# ============================== CONFIG ==============================
-$Link                = "/sitecore/content/Sitecore/SXA201/Home/Search"  # media link, internal link/path/GUID, or external URL
-$RootPath            = "/sitecore/content/Sitecore/SXA201/Home"                       # starting item path (or GUID)
-$IncludeDescendants  = $true                                                     # $true = root + all descendants, $false = root item only
-$Languages           = @("en", "fr", "en-CA")                                    # language codes to check
-$DatabaseName        = "master"
-$ExportCsv           = $false                                                    # $true = also write CSV to the Sitecore data folder
-# ====================================================================
+# ====================== INPUT DIALOG ======================
+$masterDb = [Sitecore.Configuration.Factory]::GetDatabase("master")
+
+# Language checklist built dynamically from every language registered in Sitecore
+# (Database.Languages reads the items under /sitecore/system/Languages)
+$languageOptions = [ordered]@{}
+$allLanguages = @($masterDb.Languages | Sort-Object Name)
+foreach ($l in $allLanguages) {
+    $label = $l.Name
+    try {
+        $cn = $l.CultureInfo.DisplayName
+        if ($cn) { $label = "$cn [$($l.Name)]" }
+    } catch {}
+    $languageOptions[$label] = $l.Name
+}
+$languageCount = $languageOptions.Count
+
+$defaultRoot = Get-Item -Path "master:/sitecore/content"
+
+$dialogParams = @{
+    Title            = "Find Link Usage"
+    Description      = "Find pages that reference a link in page fields or in rendering datasource items. Only items with a layout are reported."
+    OkButtonName     = "Search"
+    CancelButtonName = "Cancel"
+    ShowHints        = $true
+    Width            = 650
+    Height           = 650
+    Parameters       = @(
+        @{
+            Name        = "Link"
+            Title       = "Link to find"
+            Value       = ""
+            Tooltip     = "Item GUID (e.g. {EFAF35E6-...}), Sitecore path, /-/media/... URL, or any external URL"
+            Placeholder = "{GUID}, /sitecore/... path, media link or external URL"
+            Lines       = 2
+        },
+        @{
+            Name    = "RootItem"
+            Title   = "Root item"
+            Value   = $defaultRoot
+            Root    = "/sitecore/content/"
+            Tooltip = "Search starts here"
+        },
+        @{
+            Name    = "IncludeDescendants"
+            Title   = "Include all descendants"
+            Value   = $true
+            Tooltip = "Unchecked = only the root item is checked"
+        },
+        @{
+            Name    = "Languages"
+            Title   = "Languages"
+            Editor  = "checklist"
+            Options = $languageOptions
+            Value   = @($languageOptions.Values)
+            Tooltip = "All $languageCount languages found in Sitecore are listed (all ticked by default). Untick the ones you don't need."
+        },
+        @{
+            Name    = "ExportCsv"
+            Title   = "Also export results to CSV"
+            Value   = $false
+            Tooltip = "CSV is saved in the Sitecore data folder"
+        }
+    )
+    Validator = {
+        if ([string]::IsNullOrWhiteSpace($variables.Link.Value)) {
+            $variables.Link.Error = "Please enter a link to search for."
+        }
+        if (-not $variables.RootItem.Value) {
+            $variables.RootItem.Error = "Please select a root item."
+        }
+        if (@($variables.Languages.Value).Count -eq 0) {
+            $variables.Languages.Error = "Select at least one language."
+        }
+    }
+}
+
+$dialogResult = Read-Variable @dialogParams
+if ($dialogResult -ne "ok") { Exit }
+
+# Map dialog output to the variables the search logic uses
+$Link               = $Link.Trim()
+$RootPath           = $RootItem.ID.ToString()
+$DatabaseName       = $RootItem.Database.Name
+$IncludeDescendants = [bool]$IncludeDescendants
+$Languages          = @($Languages)
+$ExportCsv          = [bool]$ExportCsv
+# ====================== END INPUT DIALOG ======================
 
 $db = [Sitecore.Configuration.Factory]::GetDatabase($DatabaseName)
 
@@ -237,3 +316,5 @@ if ($report.Count -gt 0) {
 else {
     Show-Alert "No pages found referencing the supplied link."
 }
+
+Close-Window
